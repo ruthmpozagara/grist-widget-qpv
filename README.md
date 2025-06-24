@@ -1,6 +1,6 @@
 # Vérificateur QPV
 
-Ce widget permet de vérifier si des coordonnées géographiques (latitude, longitude) se situent dans un Quartier Prioritaire de la Ville (QPV) en France. Il exploite les données issues du fichier "Périmètre des QPV au format geojson (EPSG:4326)" hébergées sur data.gouv et remplit automatiquement les colonnes d'un tableau Grist avec les résultats d'analyse. 
+Ce widget permet de vérifier si des coordonnées géographiques (latitude, longitude) se situent dans un Quartier Prioritaire de la Ville (QPV) en France. Il exploite les données issues du fichier "Périmètre des QPV au format geojson (EPSG:4326)" (Mis à jour le 27 juin 2024) hébergées sur data.gouv et remplit automatiquement les colonnes d'un tableau Grist avec les résultats d'analyse. 
 
 ## Fonctionnalités 
 * Vérification automatique de la présence d'un point dans un QPV à partir de coordonnées.
