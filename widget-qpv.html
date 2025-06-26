@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vérificateur QPV pour Grist</title>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+    <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+    <script>
+      let qpvData = null;
+      let isDataLoaded = false;
+      let tableData = [];
+      let columnMappings = {};
+      
+      const QPV_DATA_URL = 'https://www.data.gouv.fr/fr/datasets/r/942d4ee8-8142-4556-8ea1-335537ce1119';
+      
+      grist.ready({
+          requiredAccess: 'full',
+          columns: [
+              {
+                  name: "latitude",
+                  title: "Latitude",
+                  description: "Colonne contenant les coordonnées de latitude",
+                  optional: false,
+                  type: "Numeric,Text"
+              },
+              {
+                  name: "longitude", 
+                  title: "Longitude",
+                  description: "Colonne contenant les coordonnées de longitude",
+                  optional: false,
+                  type: "Numeric,Text"
+              },
+              {
+                  name: "est_qpv",
+                  title: "Est en QPV",
+                  description: "Colonne qui contiendra true si l'adresse est en QPV, false sinon",
+                  optional: false,
+                  type: "Bool"
+              },
+              {
+                  name: "nom_qpv",
+                  title: "Nom du QPV",
+                  description: "Colonne qui contiendra le nom du QPV si l'adresse s'y trouve",
+                  optional: false,
+                  type: "Text"
+              },
+              {
+                  name: "code_qpv",
+                  title: "Code du QPV",
+                  description: "Colonne qui contiendra le code du QPV si l'adresse s'y trouve",
+                  optional: false,
+                  type: "Text"
+              }
+          ]
+      });
+      
+      grist.onRecords(function(records, mappings) {
+          console.log("Données reçues:", records.length, "enregistrements");
+          
+          tableData = records;
+          columnMappings = mappings;
+          
+          if (mappings && mappings.latitude && mappings.longitude && 
+              mappings.est_qpv && mappings.nom_qpv && mappings.code_qpv) {
+              console.log("Mappings OK:", mappings);
+              document.getElementById('columnMappingMessage').style.display = 'none';
+          } else {
+              console.log("Mappings incomplets:", mappings);
+              document.getElementById('columnMappingMessage').style.display = 'block';
+          }
+      });
+      
+      // Vérifier si un point est dans un QPV
+      function checkPointInQPV(lon, lat) {
+          if (!qpvData || !qpvData.features) return { inQPV: false, qpvInfo: [] };
+          
+          const point = turf.point([lon, lat]);
+          const qpvInfo = [];
+          
+          for (const feature of qpvData.features) {
+              try {
+                  if (turf.booleanPointInPolygon(point, feature)) {
+                      const properties = feature.properties || {};
+                      qpvInfo.push({
+                          nom: properties.lib_qp || "Non renseigné",
+                          code: properties.code_qp || "Non renseigné",
+                          commune: properties.lib_com || "Non renseignée",
+                          epci: properties.siren_epci || "Non renseigné",
+                          departement: properties.lib_dep || "Non renseigné",
+                          region: properties.lib_reg || "Non renseignée"
+                      });
+                  }
+              } catch (error) {
+                  console.error("Erreur lors de la vérification d'un polygone:", error);
+                  debugLog("Erreur lors de la vérification d'un polygone: " + error.message, 'error');
+              }
+          }
+          
+          return {
+              inQPV: qpvInfo.length > 0,
+              qpvInfo: qpvInfo
+          };
+      }
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 100%;
+            margin: 0;
+            padding: 10px;
+        }
+        .container {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            font-size: 1.5em;
+            margin-top: 0;
+        }
+        .instruction-message {
+            background-color: #e2e3e5;
+            color: #383d41;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border-left: 4px solid #5bc0de;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        #result {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .neutral {
+            background-color: #e2e3e5;
+            color: #383d41;
+            border: 1px solid #d6d8db;
+        }
+        .loading {
+            text-align: center;
+            margin: 15px 0;
+            display: none;
+        }
+        .progress {
+            height: 16px;
+            margin-bottom: 15px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,.1);
+        }
+        .progress-bar {
+            float: left;
+            width: 0%;
+            height: 100%;
+            font-size: 12px;
+            line-height: 16px;
+            color: #fff;
+            text-align: center;
+            background-color: #3498db;
+            box-shadow: inset 0 -1px 0 rgba(0,0,0,.15);
+            transition: width .6s ease;
+        }
+        .debug-panel {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            display: none;
+        }
+        .debug-log {
+            max-height: 150px;
+            overflow-y: auto;
+            background-color: #f1f1f1;
+            padding: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            border: 1px solid #ddd;
+        }
+        .configuration-needed {
+            text-align: center;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            margin: 20px 0;
+        }
+        .summary {
+            margin-top: 15px;
+            font-weight: bold;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Vérificateur QPV</h1>
+    
+    <div class="container">
+        <div class="instruction-message">
+            <strong>Instructions :</strong> Ce widget vérifie si des adresses se trouvent dans des Quartiers Prioritaires de la Ville (QPV). 
+            <p>Pour l'utiliser, configurez vos colonnes préalablement existantes via le panneau de création :</p>
+            <ul>
+                <li><strong>Latitude</strong> et <strong>Longitude</strong> : Indiquez les colonnes contenant les coordonnées à vérifier</li>
+                <li><strong>Est en QPV</strong> :  Indiquez la colonne (de type booléen) qui affichera Vrai si l'adresse est en QPV, Faux sinon</li>
+                <li><strong>Nom du QPV</strong> : Indiquez la colonne qui affichera le nom du QPV, si l'adresse s'y trouve.</li>
+                <li><strong>Code du QPV</strong> : Sélectionnez la colonne qui affichera le code du QPV, si l'adresse s'y trouve.</li>
+            </ul>
+            <p>Une fois configuré, cliquez sur "Analyser les coordonnées" pour lancer l'analyse et remplir les colonnes de résultats.</p>
+        </div>
+
+        <div id="columnMappingMessage" class="configuration-needed" style="display: none;">
+            <p>Veuillez configurer les colonnes requises dans le panneau de création.</p>
+            <button id="openConfigButton">Ouvrir la configuration</button>
+        </div>
+        
+        <div class="settings-panel">
+            <button id="analyzeButton">Analyser les coordonnées</button>
+            <button id="toggleDebugButton" style="margin-left: 10px; background-color: #6c757d;">Afficher/Masquer débogage</button>
+        </div>
+        
+        <div class="debug-panel" id="debugPanel">
+            <h3>Journal de débogage</h3>
+            <div class="debug-log" id="debugLog"></div>
+        </div>
+        
+        <div class="loading" id="loadingData">
+            <p>Chargement des données QPV...</p>
+            <div class="progress">
+                <div class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+            </div>
+        </div>
+        
+        <div id="result" class="neutral">
+            <div id="resultText">Cliquez sur "Analyser les coordonnées" pour lancer l'analyse.</div>
+        </div>
+        
+        <div id="summaryContainer" style="display: none;">
+            <div class="summary" id="summary"></div>
+        </div>
+    </div>
+    
+    <script>
+        // logs de débogage
+        function debugLog(message, type = 'info') {
+            const debugLogElement = document.getElementById('debugLog');
+            const date = new Date();
+            const timestamp = date.toLocaleTimeString();
+            let logClass = '';
+            
+            switch(type) {
+                case 'error':
+                    logClass = 'color: red;';
+                    console.error(message);
+                    break;
+                case 'warning':
+                    logClass = 'color: orange;';
+                    console.warn(message);
+                    break;
+                default:
+                    logClass = 'color: #333;';
+                    console.log(message);
+            }
+            
+            let formattedMessage = message;
+            if (typeof message === 'object') {
+                try {
+                    formattedMessage = JSON.stringify(message, null, 2);
+                } catch (e) {
+                    formattedMessage = String(message);
+                }
+            }
+            
+            debugLogElement.innerHTML += `<div style="${logClass}">[${timestamp}] ${formattedMessage}</div>`;
+            debugLogElement.scrollTop = debugLogElement.scrollHeight;
+        }
+        
+        // résultat
+        function showResult(message, type = 'neutral') {
+            const resultElement = document.getElementById('result');
+            const resultTextElement = document.getElementById('resultText');
+            
+            resultElement.className = type;
+            resultTextElement.textContent = message;
+        }
+        
+        async function loadQPVData() {
+            if (isDataLoaded) return Promise.resolve();
+            
+            const progressBar = document.querySelector('.progress-bar');
+            const loadingElement = document.getElementById('loadingData');
+            
+            loadingElement.style.display = 'block';
+            debugLog("Chargement des données QPV...");
+            
+            try {
+                const response = await fetch(QPV_DATA_URL);
+                
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                
+                const reader = response.body.getReader();
+                const contentLength = +response.headers.get('Content-Length');
+                
+                let receivedLength = 0;
+                let chunks = [];
+                
+                while(true) {
+                    const {done, value} = await reader.read();
+                    
+                    if (done) {
+                        break;
+                    }
+                    
+                    chunks.push(value);
+                    receivedLength += value.length;
+                    
+                    if (contentLength) {
+                        const percentLoaded = Math.round((receivedLength / contentLength) * 100);
+                        progressBar.style.width = percentLoaded + '%';
+                        progressBar.textContent = percentLoaded + '%';
+                    }
+                }
+                
+                const chunksAll = new Uint8Array(receivedLength);
+                let position = 0;
+                for(let chunk of chunks) {
+                    chunksAll.set(chunk, position);
+                    position += chunk.length;
+                }
+                
+                const jsonText = new TextDecoder("utf-8").decode(chunksAll);
+                qpvData = JSON.parse(jsonText);
+                
+                debugLog(`Données QPV chargées: ${qpvData.features.length} quartiers prioritaires`);
+                loadingElement.style.display = 'none';
+                isDataLoaded = true;
+                
+                showResult("Données QPV chargées avec succès. Cliquez sur 'Analyser les coordonnées' pour lancer l'analyse.", 'success');
+                
+                return qpvData;
+            } catch (error) {
+                loadingElement.style.display = 'none';
+                debugLog(`Erreur lors du chargement des données QPV: ${error.message}`, 'error');
+                showResult(`Erreur lors du chargement des données QPV: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        // Analyser les coordonnées et mettre à jour les colonnes
+        async function analyzeAllCoordinates() {
+            try {
+                debugLog("Début de l'analyse des coordonnées...");
+                
+                // Vérifier les mappings
+                if (!columnMappings || !columnMappings.latitude || !columnMappings.longitude || 
+                    !columnMappings.est_qpv || !columnMappings.nom_qpv || !columnMappings.code_qpv) {
+                    return showResult("Veuillez configurer correctement les colonnes dans le panneau de création.", 'error');
+                }
+                
+                debugLog("Mappings des colonnes:", 'info');
+                debugLog(`  Latitude: ${columnMappings.latitude}`, 'info');
+                debugLog(`  Longitude: ${columnMappings.longitude}`, 'info');
+                debugLog(`  Est QPV: ${columnMappings.est_qpv}`, 'info');
+                debugLog(`  Nom QPV: ${columnMappings.nom_qpv}`, 'info');
+                debugLog(`  Code QPV: ${columnMappings.code_qpv}`, 'info');
+                
+                // Charger les données QPV si ce n'est pas déjà fait
+                if (!isDataLoaded) {
+                    await loadQPVData();
+                }
+                
+                // Récupérer l'objet de table actif et son ID
+                const table = await grist.getTable();
+                const tableId = await table.getTableId();
+                debugLog(`Table ID: ${tableId}`);
+                
+                // Préparer les mises à jour
+                const updates = [];
+                let validCount = 0;
+                let qpvCount = 0;
+                let invalidCount = 0;
+                
+                // Traiter chaque enregistrement
+                for (const record of tableData) {
+                    const recordId = record.id;
+                    
+                    // Vérifier si les coordonnées sont valides
+                    const latValue = record[columnMappings.latitude];
+                    const lonValue = record[columnMappings.longitude];
+                    
+                    const lat = parseFloat(latValue);
+                    const lon = parseFloat(lonValue);
+                    
+                    let isInQPV = false;
+                    let qpvName = "";
+                    let qpvCode = "";
+                    
+                    if (!isNaN(lat) && !isNaN(lon)) {
+                        validCount++;
+                        const result = checkPointInQPV(lon, lat);
+                        
+                        if (result.inQPV && result.qpvInfo.length > 0) {
+                            qpvCount++;
+                            isInQPV = true;
+                            qpvName = result.qpvInfo[0].nom;
+                            qpvCode = result.qpvInfo[0].code;
+                            debugLog(`Adresse en QPV trouvée pour ID ${recordId}: ${qpvName} (${qpvCode})`);
+                        }
+                    } else {
+                        invalidCount++;
+                        debugLog(`Coordonnées invalides pour ID ${recordId}: Latitude=${latValue}, Longitude=${lonValue}`, 'warning');
+                    }
+                    
+                    // Préparer la mise à jour
+                    const updateFields = {};
+                    updateFields[columnMappings.est_qpv] = isInQPV;
+                    updateFields[columnMappings.nom_qpv] = isInQPV ? qpvName : "";
+                    updateFields[columnMappings.code_qpv] = isInQPV ? qpvCode : "";
+                    
+                    debugLog(`Mise à jour préparée pour l'enregistrement ${recordId}:`);
+                    debugLog(`Est QPV: ${isInQPV}`);
+                    debugLog(`Nom QPV: ${isInQPV ? qpvName : "(vide)"}`);
+                    debugLog(`Code QPV: ${isInQPV ? qpvCode : "(vide)"}`);
+                    
+                    // Ajouter à la liste des mises à jour
+                    updates.push({
+                        id: recordId,
+                        fields: updateFields
+                    });
+                }
+                
+                // Effectuer les mises à jour en bloc avec docApi.applyUserActions
+                try {
+                    // Construire les actions utilisateur
+                    const actions = [];
+                    
+                    for (const update of updates) {
+                        actions.push([
+                            'UpdateRecord', 
+                            tableId, 
+                            update.id, 
+                            update.fields
+                        ]);
+                    }
+                    
+                    // Appliquer toutes les actions en une seule transaction
+                    await grist.docApi.applyUserActions(actions);
+                    
+                    // Log pour chaque mise à jour
+                    for (let i = 0; i < updates.length; i++) {
+                        debugLog(`Mise à jour réussie pour l'enregistrement ${updates[i].id}`);
+                    }
+                    
+                    // Rafraîchir la vue
+                    await grist.viewApi.fetchSelectedTable();
+                    debugLog("Vue rafraîchie avec fetchSelectedTable");
+                    
+                    // Afficher le résumé
+                    const totalCount = tableData.length;
+                    showResult(
+                        `Analyse terminée pour ${totalCount} enregistrements. ${updates.length} enregistrements mis à jour avec succès. ` + 
+                        `Rafraîchissez la page si les mises à jour ne sont pas visibles.\n` +
+                        `Résultats: ${qpvCount} sur ${validCount} adresses en QPV (${invalidCount} adresses avec coordonnées invalides)`, 
+                        'success'
+                    );
+                    
+                    document.getElementById('summaryContainer').style.display = 'block';
+                    document.getElementById('summary').textContent = 
+                        `Total: ${totalCount} | En QPV: ${qpvCount} | Hors QPV: ${validCount - qpvCount} | Invalides: ${invalidCount}`;
+                } catch (error) {
+                    debugLog(`Erreur lors de la mise à jour des enregistrements: ${error.message}`, 'error');
+                    showResult(`Erreur lors de la mise à jour des enregistrements: ${error.message}`, 'error');
+                }
+            } catch (error) {
+                debugLog(`Erreur lors de l'analyse: ${error.message}`, 'error');
+                showResult(`Erreur lors de l'analyse: ${error.message}`, 'error');
+            }
+        }
+        
+        // Initialisation des événements
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialiser le bouton d'analyse
+            document.getElementById('analyzeButton').addEventListener('click', analyzeAllCoordinates);
+            
+            // Initialiser le bouton de configuration
+            document.getElementById('openConfigButton').addEventListener('click', function() {
+                grist.api.showSection('right');
+            });
+            
+            // Initialiser le bouton de débogage
+            document.getElementById('toggleDebugButton').addEventListener('click', function() {
+                const debugPanel = document.getElementById('debugPanel');
+                debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
+            });
+            
+            // Charger les données QPV dès le début
+            loadQPVData().catch(error => {
+                debugLog(`Erreur lors du chargement initial: ${error.message}`, 'error');
+            });
+        });
+    </script>
+</body>
+</html>
