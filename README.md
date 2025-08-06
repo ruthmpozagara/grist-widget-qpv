@@ -9,7 +9,7 @@ Ce widget permet de vérifier si des coordonnées géographiques (latitude, long
 * Utilisation de Turf.js pour la géolocalisation de l'API Grist Plugin.
 
 ## Installation 
-1. **Téléchargez ou clonez ce dépôt.**
+1. **Copier coller le contenu du fichier widget-qpv.html.**
 2. **Ajoutez le widget à votre document Grist** via le custom widget builder.
 3. **Configurez les colonnes** dans le panneau de création :
    * `Latitude` : Colonne contenant les latitudes.
@@ -22,7 +22,6 @@ Ce widget permet de vérifier si des coordonnées géographiques (latitude, long
 * Cliquez sur **"Analyser les coordonnées"** une fois les colonnes configurées pour lancer l'analyse.
 * Le widget télécharge les données QPV, puis vérifie chaque ligne du tableau.
 * Les résultats sont automatiquement inscrits dans les colonnes configurées.
-* Utilisez le bouton **"Afficher/Masquer débogage"** pour consulter le journal d'exécution en cas de problème.
 
 ## Dépendances
 * Turf.js
